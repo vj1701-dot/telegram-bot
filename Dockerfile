@@ -43,6 +43,7 @@ WORKDIR /app
 
 # Copy application code
 COPY dashboard /app/dashboard
+COPY bot /app/bot
 COPY shared /app/shared
 
 # Create data directory
