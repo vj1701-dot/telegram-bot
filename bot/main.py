@@ -75,11 +75,14 @@ class BotApplicationManager:
 
             logger.info("=" * 60)
             logger.info("Bot application is running")
+            logger.info("Web UI: http://localhost:8000")
+            logger.info("API Docs: http://localhost:8000/docs")
             logger.info("Press Ctrl+C to stop")
             logger.info("=" * 60)
 
-            # Keep bot polling (or just keep alive)
-            await self.bot_manager.start_polling()
+            # Keep alive - no polling needed for send-only bot
+            while True:
+                await asyncio.sleep(3600)  # Sleep 1 hour, scheduler handles sending
 
         except Exception as e:
             logger.error(f"Fatal error in run loop: {e}", exc_info=True)

@@ -23,7 +23,7 @@ class BotSettings(BaseSettings):
     api_port: int = Field(default=8000)
 
     # Timezone
-    timezone: str = Field(default="UTC", env="TZ")
+    timezone: str = Field(default="America/Los_Angeles", env="TZ")
 
     class Config:
         env_file = "/app/data/.env"
@@ -53,7 +53,7 @@ class BotConfigManager:
         """Create default configuration structure."""
         return {
             "bots": [],  # List of bot configs
-            "global_timezone": "UTC",
+            "global_timezone": "America/Los_Angeles",
             "default_upload_subfolder": "",
             "theme": "light"
         }

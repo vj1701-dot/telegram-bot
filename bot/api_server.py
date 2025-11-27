@@ -2,12 +2,19 @@
 FastAPI server for dashboard communication.
 Provides endpoints for bot control and diagnostics.
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Dict, Optional
+from pathlib import Path
 import logging
+import shutil
 
 logger = logging.getLogger(__name__)
+
+# Data directory
+DATA_DIR = Path("/app/data")
 
 
 class SendAudioRequest(BaseModel):
@@ -41,6 +48,15 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
         description="API for managing Telegram audio bot and scheduled sends",
         version="1.0.0"
     )
+
+    # Serve HTML UI
+    @app.get("/", response_class=HTMLResponse)
+    async def read_root():
+        """Serve the HTML UI."""
+        html_path = Path(__file__).parent / "web" / "templates" / "index.html"
+        if html_path.exists():
+            return html_path.read_text()
+        return "<h1>Telegram Audio Bot</h1><p>UI not found. Visit <a href='/docs'>/docs</a> for API.</p>"
 
     @app.get("/health")
     async def health_check():
@@ -178,5 +194,106 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
             raise HTTPException(status_code=400, detail="Connection test failed")
 
         return {"status": "connected"}
+
+    # New endpoints for HTML UI
+    @app.get("/api/status")
+    async def get_status():
+        """Get overall system status."""
+        from bot.config import BotConfigManager
+        config_mgr = BotConfigManager(DATA_DIR)
+        bots = config_mgr.get_bots()
+
+        schedule_file = DATA_DIR / "schedule.xlsx"
+
+        # Count audio files
+        audio_dir = DATA_DIR / "audio"
+        file_count = 0
+        if audio_dir.exists():
+            file_count = len(list(audio_dir.rglob("*.mp3"))) + \
+                        len(list(audio_dir.rglob("*.ogg"))) + \
+                        len(list(audio_dir.rglob("*.wav"))) + \
+                        len(list(audio_dir.rglob("*.m4a")))
+
+        return {
+            "bot_count": len([b for b in bots if b.get("enabled")]),
+            "schedule_exists": schedule_file.exists(),
+            "file_count": file_count
+        }
+
+    @app.get("/api/bots")
+    async def get_bots():
+        """Get all configured bots."""
+        from bot.config import BotConfigManager
+        config_mgr = BotConfigManager(DATA_DIR)
+        return config_mgr.get_bots()
+
+    @app.post("/api/bots")
+    async def add_bot(bot_token: str = Form(...), chat_id: str = Form(...), scheduler_time: str = Form("09:00")):
+        """Add a new bot."""
+        from bot.config import BotConfigManager
+        config_mgr = BotConfigManager(DATA_DIR)
+
+        if config_mgr.add_bot(bot_token, chat_id, scheduler_time):
+            # Reload config
+            await bot_manager.initialize()
+            scheduler_manager.reload_schedules()
+            return {"status": "added"}
+        else:
+            raise HTTPException(status_code=400, detail="Bot already exists")
+
+    @app.post("/api/upload")
+    async def upload_file(file: UploadFile = File(...), folder: str = Form("audio/")):
+        """Upload audio file."""
+        target_dir = DATA_DIR / folder
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        file_path = target_dir / file.filename
+
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        return {"status": "uploaded", "filename": file.filename}
+
+    @app.post("/api/schedule")
+    async def upload_schedule(file: UploadFile = File(...)):
+        """Upload schedule.xlsx file."""
+        if not file.filename.endswith('.xlsx'):
+            raise HTTPException(status_code=400, detail="Only .xlsx files allowed")
+
+        schedule_path = DATA_DIR / "schedule.xlsx"
+
+        with open(schedule_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        return {"status": "uploaded"}
+
+    @app.get("/api/schedule")
+    async def download_schedule():
+        """Download schedule.xlsx file."""
+        schedule_path = DATA_DIR / "schedule.xlsx"
+
+        if not schedule_path.exists():
+            raise HTTPException(status_code=404, detail="Schedule file not found")
+
+        return FileResponse(schedule_path, filename="schedule.xlsx")
+
+    @app.post("/api/send-manual")
+    async def send_manual(date: str = Form(...)):
+        """Manually send audio for a specific date."""
+        from bot.config import BotConfigManager
+        config_mgr = BotConfigManager(DATA_DIR)
+        bots = config_mgr.get_bots()
+
+        total_sent = 0
+        for bot_config in bots:
+            if bot_config.get("enabled"):
+                count = await scheduler_manager.send_by_date(
+                    bot_config["bot_token"],
+                    bot_config["chat_id"],
+                    date
+                )
+                total_sent += count
+
+        return {"status": "sent", "count": total_sent, "date": date}
 
     return app
