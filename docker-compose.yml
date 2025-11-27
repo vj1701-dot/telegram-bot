@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  bot:
+    build:
+      context: .
+      target: bot
+    container_name: telegram-audio-bot
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+      - BOT_LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data
+      - ./bot:/app/bot
+      - ./shared:/app/shared
+    ports:
+      - "8000:8000"
+    networks:
+      - bot-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  dashboard:
+    build:
+      context: .
+      target: dashboard
+    container_name: streamlit-dashboard
+    environment:
+      - PYTHONUNBUFFERED=1
+      - BOT_API_URL=http://bot:8000
+      - TZ=UTC
+    volumes:
+      - ./data:/app/data
+      - ./dashboard:/app/dashboard
+      - ./shared:/app/shared
+    ports:
+      - "8501:8501"
+    networks:
+      - bot-network
+    depends_on:
+      bot:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  bot-network:
+    driver: bridge
+
+volumes:
+  data:
+    driver: local

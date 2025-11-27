@@ -1,0 +1,67 @@
+# UTC Zones
+UTC
+
+# Eastern Time
+US/Eastern
+America/New_York
+America/Toronto
+America/Montreal
+America/Jamaica
+America/Puerto_Rico
+America/Virgin
+America/Detroit
+America/Indiana/Indianapolis
+America/Kentucky/Louisville
+
+# Central Time
+US/Central
+America/Chicago
+America/Mexico_City
+America/Belize
+America/Costa_Rica
+America/El_Salvador
+America/Guatemala
+America/Honduras
+America/Managua
+America/Winnipeg
+America/Regina
+
+# Mountain Time
+US/Mountain
+America/Denver
+America/Phoenix
+America/Boise
+America/Edmonton
+America/Mazatlan
+
+# Pacific Time
+US/Pacific
+America/Los_Angeles
+America/Tijuana
+America/Vancouver
+
+# Alaska Time
+US/Alaska
+America/Anchorage
+America/Juneau
+America/Metlakatla
+America/Nome
+America/Sitka
+America/Yakutat
+
+# Hawaii-Aleutian Time
+US/Hawaii
+Pacific/Honolulu
+America/Adak
+
+# Atlantic Time
+America/Halifax
+America/Bermuda
+America/Blanc-Sablon
+America/Glace_Bay
+America/Goose_Bay
+America/Moncton
+America/Thule
+
+# Newfoundland Time
+America/St_Johns
