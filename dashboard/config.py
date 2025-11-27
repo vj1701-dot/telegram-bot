@@ -9,7 +9,8 @@ class DashboardConfig:
     BOT_API_URL = os.getenv("BOT_API_URL", "http://localhost:8000")
     DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
     REFRESH_INTERVAL = 5  # seconds
-    MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50MB
+    # No upload size limit for local deployments
+    MAX_UPLOAD_SIZE = None  # Unlimited for local use
 
     # Theme colors
     PRIMARY_COLOR = "#FF6B6B"

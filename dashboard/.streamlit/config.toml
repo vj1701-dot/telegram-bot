@@ -1,0 +1,13 @@
+[server]
+# Remove upload size limit for local deployment
+maxUploadSize = 5000
+# 5000 MB = 5 GB limit (effectively unlimited for audio files)
+
+[theme]
+primaryColor = "#FF6B6B"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#262730"
+
+[browser]
+gatherUsageStats = false

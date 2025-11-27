@@ -108,31 +108,31 @@ if page == "🏠 Home":
         st.metric("Schedule", "Ready" if schedule_file.exists() else "Not Found")
 
 elif page == "⚙️ Configuration":
-    from dashboard.pages import configuration
+    from dashboard.views import configuration
     configuration.show()
 
 elif page == "📅 Scheduler":
-    from dashboard.pages import scheduler
+    from dashboard.views import scheduler
     scheduler.show()
 
 elif page == "📝 Schedule Editor":
-    from dashboard.pages import schedule_editor
+    from dashboard.views import schedule_editor
     schedule_editor.show()
 
 elif page == "📁 File Management":
-    from dashboard.pages import file_management
+    from dashboard.views import file_management
     file_management.show()
 
 elif page == "📤 Manual Send":
-    from dashboard.pages import manual_send
+    from dashboard.views import manual_send
     manual_send.show()
 
 elif page == "🔍 Diagnostics":
-    from dashboard.pages import diagnostics
+    from dashboard.views import diagnostics
     diagnostics.show()
 
 elif page == "🎨 Settings":
-    from dashboard.pages import settings
+    from dashboard.views import settings
     settings.show()
 
 # Footer

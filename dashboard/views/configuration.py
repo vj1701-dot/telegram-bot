@@ -19,7 +19,7 @@ def show():
     with tabs[0]:
         st.subheader("Add New Bot")
 
-        with st.form("add_bot_form"):
+        with st.form("add_bot_form", clear_on_submit=False):
             col1, col2 = st.columns(2)
 
             with col1:
@@ -37,11 +37,10 @@ def show():
 
             scheduler_time = st.time_input(
                 "Default Scheduler Time",
-                value=(9, 0),
                 help="Daily time to send scheduled audio"
             )
 
-            submitted = st.form_submit_button("Add Bot", use_container_width=True)
+            submitted = st.form_submit_button("➕ Add Bot", use_container_width=True, type="primary")
 
             if submitted:
                 if bot_token and chat_id:

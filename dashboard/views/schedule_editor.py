@@ -55,27 +55,42 @@ def show():
         # Editable dataframe
         st.subheader("Edit Schedule")
 
+        # Ensure proper column types
+        if "Date" in df.columns:
+            df["Date"] = pd.to_datetime(df["Date"]).dt.date
+        if "Enabled" in df.columns:
+            df["Enabled"] = df["Enabled"].astype(bool)
+        if "Path" in df.columns:
+            df["Path"] = df["Path"].astype(str)
+        if "Track Name" in df.columns:
+            df["Track Name"] = df["Track Name"].astype(str)
+
         edited_df = st.data_editor(
             df,
             use_container_width=True,
             num_rows="dynamic",
+            hide_index=True,
             column_config={
                 "Date": st.column_config.DateColumn(
                     "Date",
                     format="YYYY-MM-DD",
-                    help="Date to send audio"
+                    help="Date to send audio",
+                    required=True
                 ),
                 "Path": st.column_config.TextColumn(
                     "Path",
-                    help="Relative path from /data"
+                    help="Relative path from /data",
+                    required=True
                 ),
                 "Track Name": st.column_config.TextColumn(
                     "Track Name",
-                    help="Filename with extension"
+                    help="Filename with extension",
+                    required=True
                 ),
                 "Enabled": st.column_config.CheckboxColumn(
                     "Enabled",
-                    help="Enable/disable this entry"
+                    help="Enable/disable this entry",
+                    default=True
                 )
             }
         )

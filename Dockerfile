@@ -46,6 +46,9 @@ COPY dashboard /app/dashboard
 COPY bot /app/bot
 COPY shared /app/shared
 
+# Copy Streamlit config
+COPY dashboard/.streamlit /app/dashboard/.streamlit
+
 # Create data directory
 RUN mkdir -p /app/data
 

@@ -19,55 +19,78 @@ def show():
     with tabs[0]:
         st.subheader("Upload Audio Files")
 
+        st.info("💡 **Tip:** You can select multiple files at once. No file size limits for local deployment!")
+
         # Get subfolders
         subfolders = _get_subfolders(data_dir)
 
         target_folder = st.selectbox(
             "Target Folder",
             options=["audio/"] + subfolders,
-            help="Select destination folder"
+            help="Select destination folder for your audio files"
         )
 
         # Create new subfolder option
         with st.expander("➕ Create New Subfolder"):
-            new_folder = st.text_input("Subfolder Name", placeholder="e.g., news")
-            if st.button("Create Folder"):
+            new_folder = st.text_input("Subfolder Name", placeholder="e.g., morning_briefs")
+            if st.button("Create Folder", use_container_width=True):
                 if new_folder:
+                    # Sanitize folder name
+                    new_folder = new_folder.strip().replace(" ", "_")
                     folder_path = data_dir / "audio" / new_folder
                     folder_path.mkdir(parents=True, exist_ok=True)
-                    st.success(f"✓ Created folder: {new_folder}")
+                    st.success(f"✓ Created folder: audio/{new_folder}")
                     st.rerun()
+                else:
+                    st.warning("Please enter a folder name")
 
+        # File uploader with no size limit
         uploaded_files = st.file_uploader(
-            "Choose audio files",
+            "Choose audio files (select multiple files from your folder)",
             type=DashboardConfig.AUDIO_FORMATS,
             accept_multiple_files=True,
-            help=f"Supported formats: {', '.join(DashboardConfig.AUDIO_FORMATS)}"
+            help=f"Supported formats: {', '.join(DashboardConfig.AUDIO_FORMATS)}. Select multiple files at once!"
         )
 
         if uploaded_files:
-            st.info(f"Selected {len(uploaded_files)} file(s)")
+            total_size = sum(len(file.getvalue()) for file in uploaded_files) / (1024 * 1024)
+            st.info(f"📦 Selected {len(uploaded_files)} file(s) - Total size: {total_size:.2f} MB")
 
-            for file in uploaded_files:
-                size_mb = len(file.getvalue()) / (1024 * 1024)
-                st.text(f"📄 {file.name} ({size_mb:.2f} MB)")
+            # Show file details
+            with st.expander("📋 View selected files"):
+                for file in uploaded_files:
+                    size_mb = len(file.getvalue()) / (1024 * 1024)
+                    st.text(f"📄 {file.name} ({size_mb:.2f} MB)")
 
-            if st.button("📤 Upload Files", use_container_width=True):
+            if st.button("📤 Upload All Files", use_container_width=True, type="primary"):
                 progress_bar = st.progress(0)
+                status_text = st.empty()
                 uploaded_count = 0
+                failed_count = 0
 
                 for idx, file in enumerate(uploaded_files):
-                    save_path = data_dir / target_folder / file.name
+                    try:
+                        save_path = data_dir / target_folder / file.name
+                        save_path.parent.mkdir(parents=True, exist_ok=True)
 
-                    save_path.parent.mkdir(parents=True, exist_ok=True)
+                        with open(save_path, 'wb') as f:
+                            f.write(file.getbuffer())
 
-                    with open(save_path, 'wb') as f:
-                        f.write(file.getbuffer())
+                        uploaded_count += 1
+                        status_text.text(f"Uploading: {file.name}")
+                    except Exception as e:
+                        failed_count += 1
+                        st.warning(f"Failed to upload {file.name}: {e}")
 
-                    uploaded_count += 1
                     progress_bar.progress((idx + 1) / len(uploaded_files))
 
-                st.success(f"✓ Uploaded {uploaded_count} file(s) to {target_folder}")
+                progress_bar.empty()
+                status_text.empty()
+
+                if uploaded_count > 0:
+                    st.success(f"✓ Successfully uploaded {uploaded_count} file(s) to {target_folder}")
+                if failed_count > 0:
+                    st.error(f"✗ Failed to upload {failed_count} file(s)")
 
     with tabs[1]:
         st.subheader("Verify Schedule Files")
