@@ -168,13 +168,22 @@
         <div id="schedule" class="tab-content">
             <h2>Schedule Editor</h2>
             <div class="info">
-                Edit your schedule below. Changes are saved to <code>/data/schedule.xlsx</code>
+                Manage multiple schedule files. The bot reads all enabled schedules.
+            </div>
+
+            <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center;">
+                <label style="font-weight: bold;">Current Schedule:</label>
+                <select id="schedule-selector" onchange="switchSchedule()" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                    <option value="schedule.xlsx">schedule.xlsx (default)</option>
+                </select>
+                <button onclick="createNewSchedule()">➕ New Schedule</button>
             </div>
 
             <div style="margin-bottom: 20px;">
                 <button onclick="addScheduleRow()">➕ Add Row</button>
                 <button onclick="saveSchedule()">💾 Save Schedule</button>
                 <button onclick="downloadSchedule()">📥 Download Excel</button>
+                <button onclick="deleteCurrentSchedule()" style="background: #dc3545;">🗑️ Delete Schedule</button>
             </div>
 
             <div style="overflow-x: auto;">
@@ -338,17 +347,97 @@
         }
 
         let scheduleData = [];
+        let currentScheduleFile = 'schedule.xlsx';
 
-        async function loadSchedule() {
+        async function loadScheduleList() {
             try {
-                const response = await fetch('/api/schedule/data');
+                const response = await fetch('/api/schedules/list');
+                const data = await response.json();
+                const selector = document.getElementById('schedule-selector');
+
+                selector.innerHTML = data.schedules.map(name =>
+                    `<option value="${name}" ${name === currentScheduleFile ? 'selected' : ''}>${name}</option>`
+                ).join('');
+            } catch (e) {
+                console.error('Failed to load schedule list', e);
+            }
+        }
+
+        async function loadSchedule(filename = currentScheduleFile) {
+            try {
+                const response = await fetch(`/api/schedule/data?filename=${filename}`);
                 const data = await response.json();
                 scheduleData = data.rows || [];
+                currentScheduleFile = data.filename || filename;
                 renderScheduleTable();
+                await loadScheduleList();
             } catch (e) {
                 console.error('Failed to load schedule', e);
                 document.getElementById('schedule-body').innerHTML =
                     '<tr><td colspan="5" style="text-align: center; padding: 20px; color: red;">Failed to load schedule</td></tr>';
+            }
+        }
+
+        function switchSchedule() {
+            const selector = document.getElementById('schedule-selector');
+            currentScheduleFile = selector.value;
+            loadSchedule(currentScheduleFile);
+        }
+
+        async function createNewSchedule() {
+            const filename = prompt('Enter new schedule filename (without .xlsx):');
+            if (!filename) return;
+
+            try {
+                const formData = new FormData();
+                formData.append('filename', filename);
+
+                const response = await fetch('/api/schedule/create', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`✓ Created new schedule: ${result.filename}`);
+                    currentScheduleFile = result.filename;
+                    await loadSchedule(currentScheduleFile);
+                } else {
+                    const error = await response.json();
+                    alert('Failed to create schedule: ' + error.detail);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        async function deleteCurrentSchedule() {
+            if (currentScheduleFile === 'schedule.xlsx') {
+                alert('Cannot delete the default schedule!');
+                return;
+            }
+
+            if (!confirm(`Delete ${currentScheduleFile}?`)) return;
+
+            try {
+                const formData = new FormData();
+                formData.append('filename', currentScheduleFile);
+
+                const response = await fetch('/api/schedule/delete', {
+                    method: 'DELETE',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    alert(`✓ Deleted ${currentScheduleFile}`);
+                    currentScheduleFile = 'schedule.xlsx';
+                    await loadSchedule(currentScheduleFile);
+                } else {
+                    const error = await response.json();
+                    alert('Failed to delete: ' + error.detail);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
             }
         }
 
@@ -416,6 +505,7 @@
             try {
                 const formData = new FormData();
                 formData.append('rows', JSON.stringify(scheduleData));
+                formData.append('filename', currentScheduleFile);
 
                 const response = await fetch('/api/schedule/data', {
                     method: 'POST',
@@ -424,7 +514,7 @@
 
                 if (response.ok) {
                     const result = await response.json();
-                    alert(`✓ Schedule saved successfully! ${result.rows} rows saved to schedule.xlsx`);
+                    alert(`✓ Schedule saved successfully! ${result.rows} rows saved to ${result.filename}`);
                 } else {
                     const error = await response.json();
                     alert('Failed to save schedule: ' + (error.detail || 'Unknown error'));

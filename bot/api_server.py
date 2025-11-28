@@ -277,27 +277,44 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
 
         return FileResponse(schedule_path, filename="schedule.xlsx")
 
+    @app.get("/api/schedules/list")
+    async def list_schedules():
+        """List all schedule files."""
+        schedule_files = list(DATA_DIR.glob("schedule*.xlsx"))
+        # Also check schedules subfolder
+        schedules_dir = DATA_DIR / "schedules"
+        if schedules_dir.exists():
+            schedule_files.extend(list(schedules_dir.glob("*.xlsx")))
+
+        files = [f.name for f in schedule_files]
+        return {"schedules": files}
+
     @app.get("/api/schedule/data")
-    async def get_schedule_data():
+    async def get_schedule_data(filename: str = "schedule.xlsx"):
         """Get schedule data as JSON for editing."""
         import pandas as pd
-        schedule_path = DATA_DIR / "schedule.xlsx"
+
+        # Try main data dir first, then schedules subfolder
+        schedule_path = DATA_DIR / filename
+        if not schedule_path.exists():
+            schedule_path = DATA_DIR / "schedules" / filename
 
         if not schedule_path.exists():
             return {"rows": []}
 
         df = pd.read_excel(schedule_path)
         rows = df.to_dict('records')
-        return {"rows": rows}
+        return {"rows": rows, "filename": filename}
 
     @app.post("/api/schedule/data")
-    async def save_schedule_data(rows: str = Form(...)):
+    async def save_schedule_data(rows: str = Form(...), filename: str = Form("schedule.xlsx")):
         """Save schedule data from JSON."""
         import pandas as pd
         import json
         from datetime import datetime
 
-        schedule_path = DATA_DIR / "schedule.xlsx"
+        # Determine save location
+        schedule_path = DATA_DIR / filename
 
         try:
             # Parse the JSON string
@@ -325,12 +342,49 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
             # Save to Excel with openpyxl engine
             df.to_excel(schedule_path, index=False, engine='openpyxl')
 
-            logger.info(f"Schedule saved successfully: {len(rows_data)} rows")
-            return {"status": "saved", "rows": len(rows_data)}
+            logger.info(f"Schedule saved successfully: {filename} with {len(rows_data)} rows")
+            return {"status": "saved", "rows": len(rows_data), "filename": filename}
 
         except Exception as e:
             logger.error(f"Failed to save schedule: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to save schedule: {str(e)}")
+
+    @app.post("/api/schedule/create")
+    async def create_schedule(filename: str = Form(...)):
+        """Create a new empty schedule file."""
+        import pandas as pd
+
+        # Sanitize filename
+        filename = filename.strip()
+        if not filename.endswith('.xlsx'):
+            filename += '.xlsx'
+
+        schedule_path = DATA_DIR / filename
+
+        if schedule_path.exists():
+            raise HTTPException(status_code=400, detail="Schedule already exists")
+
+        # Create empty schedule
+        df = pd.DataFrame(columns=['Date', 'Path', 'Track Name', 'Enabled'])
+        df.to_excel(schedule_path, index=False, engine='openpyxl')
+
+        logger.info(f"Created new schedule: {filename}")
+        return {"status": "created", "filename": filename}
+
+    @app.delete("/api/schedule/delete")
+    async def delete_schedule(filename: str = Form(...)):
+        """Delete a schedule file."""
+        if filename == "schedule.xlsx":
+            raise HTTPException(status_code=400, detail="Cannot delete default schedule")
+
+        schedule_path = DATA_DIR / filename
+
+        if not schedule_path.exists():
+            raise HTTPException(status_code=404, detail="Schedule not found")
+
+        schedule_path.unlink()
+        logger.info(f"Deleted schedule: {filename}")
+        return {"status": "deleted", "filename": filename}
 
     @app.post("/api/send-manual")
     async def send_manual(date: str = Form(...)):
