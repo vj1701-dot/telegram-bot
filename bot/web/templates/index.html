@@ -236,13 +236,11 @@
         document.getElementById('add-bot-form').onsubmit = async (e) => {
             e.preventDefault();
             const formData = new FormData(e.target);
-            const data = Object.fromEntries(formData);
 
             try {
                 const response = await fetch('/api/bots', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(data)
+                    body: formData  // Send FormData directly, not JSON
                 });
 
                 if (response.ok) {
@@ -250,7 +248,8 @@
                     e.target.reset();
                     loadBots();
                 } else {
-                    alert('Failed to add bot');
+                    const error = await response.json();
+                    alert('Failed to add bot: ' + (error.detail || 'Unknown error'));
                 }
             } catch (e) {
                 alert('Error: ' + e.message);
@@ -318,17 +317,16 @@
         document.getElementById('manual-send-form').onsubmit = async (e) => {
             e.preventDefault();
             const formData = new FormData(e.target);
-            const date = formData.get('date');
 
             try {
                 const response = await fetch('/api/send-manual', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({date})
+                    body: formData  // Send FormData directly
                 });
 
                 if (response.ok) {
-                    alert('Audio sent successfully!');
+                    const result = await response.json();
+                    alert(`Audio sent successfully! Sent ${result.count} file(s) for date ${result.date}`);
                 } else {
                     alert('Failed to send audio');
                 }
