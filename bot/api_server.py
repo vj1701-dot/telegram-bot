@@ -291,28 +291,46 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
         return {"rows": rows}
 
     @app.post("/api/schedule/data")
-    async def save_schedule_data(rows: List[Dict] = Form(...)):
+    async def save_schedule_data(rows: str = Form(...)):
         """Save schedule data from JSON."""
         import pandas as pd
         import json
+        from datetime import datetime
 
         schedule_path = DATA_DIR / "schedule.xlsx"
 
-        # Parse the JSON string
-        rows_data = json.loads(rows)
+        try:
+            # Parse the JSON string
+            rows_data = json.loads(rows)
 
-        # Create DataFrame
-        df = pd.DataFrame(rows_data)
+            if not rows_data:
+                # Empty schedule
+                df = pd.DataFrame(columns=['Date', 'Path', 'Track Name', 'Enabled'])
+            else:
+                # Create DataFrame
+                df = pd.DataFrame(rows_data)
 
-        # Ensure correct column order
-        if not df.empty:
-            expected_cols = ['Date', 'Path', 'Track Name', 'Enabled']
-            df = df[expected_cols]
+                # Convert date strings to proper format
+                if 'Date' in df.columns:
+                    df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d')
 
-        # Save to Excel
-        df.to_excel(schedule_path, index=False)
+                # Ensure boolean for Enabled
+                if 'Enabled' in df.columns:
+                    df['Enabled'] = df['Enabled'].astype(bool)
 
-        return {"status": "saved", "rows": len(rows_data)}
+                # Ensure correct column order
+                expected_cols = ['Date', 'Path', 'Track Name', 'Enabled']
+                df = df[expected_cols]
+
+            # Save to Excel with openpyxl engine
+            df.to_excel(schedule_path, index=False, engine='openpyxl')
+
+            logger.info(f"Schedule saved successfully: {len(rows_data)} rows")
+            return {"status": "saved", "rows": len(rows_data)}
+
+        except Exception as e:
+            logger.error(f"Failed to save schedule: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to save schedule: {str(e)}")
 
     @app.post("/api/send-manual")
     async def send_manual(date: str = Form(...)):

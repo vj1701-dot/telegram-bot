@@ -424,9 +424,10 @@
 
                 if (response.ok) {
                     const result = await response.json();
-                    alert(`Schedule saved successfully! ${result.rows} rows saved.`);
+                    alert(`✓ Schedule saved successfully! ${result.rows} rows saved to schedule.xlsx`);
                 } else {
-                    alert('Failed to save schedule');
+                    const error = await response.json();
+                    alert('Failed to save schedule: ' + (error.detail || 'Unknown error'));
                 }
             } catch (e) {
                 alert('Error saving schedule: ' + e.message);
