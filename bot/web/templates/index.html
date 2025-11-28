@@ -87,6 +87,140 @@
             cursor: pointer;
         }
         .file-upload:hover { border-color: #007bff; background: #f8f9fa; }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background: white;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 600px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .close {
+            font-size: 28px;
+            font-weight: bold;
+            color: #666;
+            cursor: pointer;
+        }
+        .close:hover { color: #000; }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .btn-edit {
+            background: #28a745;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .btn-edit:hover { background: #218838; }
+        .btn-delete {
+            background: #dc3545;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .btn-delete:hover { background: #c82333; }
+        .schedule-checkboxes {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+        .schedule-checkbox {
+            display: block;
+            margin-bottom: 8px;
+        }
+        .schedule-order-list {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            background: white;
+            min-height: 100px;
+        }
+        .schedule-order-list h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        .schedule-item {
+            padding: 8px 12px;
+            margin-bottom: 5px;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: move;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+        }
+        .schedule-item:hover {
+            background: #e9ecef;
+            border-color: #007bff;
+        }
+        .schedule-item.dragging {
+            opacity: 0.5;
+        }
+        .schedule-order-num {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            line-height: 24px;
+            text-align: center;
+            background: #007bff;
+            color: white;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 12px;
+            margin-right: 8px;
+        }
+        .schedule-name {
+            flex: 1;
+        }
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .btn-small:hover {
+            background: #0056b3;
+        }
+        .btn-remove {
+            background: #dc3545;
+        }
+        .btn-remove:hover {
+            background: #c82333;
+        }
     </style>
 </head>
 <body>
@@ -141,11 +275,62 @@
                     <label>Scheduler Time (daily send time)</label>
                     <input type="time" name="scheduler_time" value="09:00" required>
                 </div>
+                <div class="form-group">
+                    <label>Select Schedules (click to add, drag to reorder)</label>
+                    <div id="add-bot-schedules-available" class="schedule-checkboxes">
+                        <p style="color: #666;">Loading schedules...</p>
+                    </div>
+                    <div id="add-bot-schedules-selected" class="schedule-order-list" style="margin-top: 10px;">
+                        <h4>Selected Schedules (in order):</h4>
+                        <p style="color: #999; font-size: 13px;" id="add-no-schedules">No schedules selected</p>
+                    </div>
+                </div>
                 <button type="submit">Add Bot</button>
             </form>
 
             <h3 style="margin-top: 40px;">Configured Bots</h3>
             <div id="bots-list"></div>
+        </div>
+
+        <!-- Edit Bot Modal -->
+        <div id="edit-bot-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Edit Bot Configuration</h2>
+                    <span class="close" onclick="closeEditModal()">&times;</span>
+                </div>
+                <form id="edit-bot-form">
+                    <input type="hidden" id="edit-bot-token" name="bot_token">
+                    <div class="form-group">
+                        <label>Chat ID</label>
+                        <input type="text" id="edit-chat-id" name="chat_id" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Scheduler Time</label>
+                        <input type="time" id="edit-scheduler-time" name="scheduler_time" required>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="edit-enabled" name="enabled">
+                            Enabled
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Select Schedules (click to add, drag to reorder)</label>
+                        <div id="edit-bot-schedules-available" class="schedule-checkboxes">
+                            <p style="color: #666;">Loading schedules...</p>
+                        </div>
+                        <div id="edit-bot-schedules-selected" class="schedule-order-list" style="margin-top: 10px;">
+                            <h4>Selected Schedules (in order):</h4>
+                            <p style="color: #999; font-size: 13px;" id="edit-no-schedules">No schedules selected</p>
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <button type="submit" class="btn-edit">Save Changes</button>
+                        <button type="button" onclick="closeEditModal()" style="background: #6c757d;">Cancel</button>
+                    </div>
+                </form>
+            </div>
         </div>
 
         <!-- Upload Files Tab -->
@@ -158,8 +343,8 @@
             </div>
             <div class="file-upload" onclick="document.getElementById('file-input').click()">
                 <p>📁 Click to select audio files</p>
-                <p style="color: #666; font-size: 14px;">Supported: MP3, OGG, WAV, M4A</p>
-                <input type="file" id="file-input" multiple accept=".mp3,.ogg,.wav,.m4a" style="display:none" onchange="uploadFiles()">
+                <p style="color: #666; font-size: 14px;">Supported: MP3, OGG, OPUS, WAV, M4A</p>
+                <input type="file" id="file-input" multiple accept=".mp3,.ogg,.opus,.wav,.m4a" style="display:none" onchange="uploadFiles()">
             </div>
             <div id="upload-status"></div>
         </div>
@@ -250,21 +435,190 @@
             }
         }
 
+        let availableSchedules = [];
+
+        async function loadAvailableSchedules() {
+            try {
+                const response = await fetch('/api/schedules/list');
+                const data = await response.json();
+                availableSchedules = data.schedules || [];
+                return availableSchedules;
+            } catch (e) {
+                console.error('Failed to load schedules', e);
+                return [];
+            }
+        }
+
+        // Schedule ordering system
+        let addBotSelectedSchedules = [];
+        let editBotSelectedSchedules = [];
+
+        function renderScheduleSelector(prefix, selectedSchedules = []) {
+            const availableContainer = document.getElementById(`${prefix}-schedules-available`);
+            const selectedContainer = document.getElementById(`${prefix}-schedules-selected`);
+            const noSchedulesMsg = document.getElementById(`${prefix}-no-schedules`);
+
+            if (!availableSchedules.length) {
+                availableContainer.innerHTML = '<p style="color: #999;">No schedules available</p>';
+                return;
+            }
+
+            // Store selected schedules
+            if (prefix === 'add-bot') {
+                addBotSelectedSchedules = [...selectedSchedules];
+            } else {
+                editBotSelectedSchedules = [...selectedSchedules];
+            }
+
+            // Render available schedules (not yet selected)
+            availableContainer.innerHTML = availableSchedules
+                .filter(s => !selectedSchedules.includes(s))
+                .map(schedule => `
+                    <div class="schedule-item" onclick="addScheduleToBot('${prefix}', '${schedule}')" style="cursor: pointer;">
+                        <span>${schedule}</span>
+                        <button class="btn-small" onclick="event.stopPropagation(); addScheduleToBot('${prefix}', '${schedule}')">+ Add</button>
+                    </div>
+                `).join('') || '<p style="color: #999; font-size: 13px;">All schedules selected</p>';
+
+            // Render selected schedules (in order)
+            if (selectedSchedules.length === 0) {
+                selectedContainer.innerHTML = '<h4>Selected Schedules (in order):</h4><p style="color: #999; font-size: 13px;" id="' + prefix + '-no-schedules">No schedules selected</p>';
+            } else {
+                selectedContainer.innerHTML = '<h4>Selected Schedules (in order):</h4>' +
+                    selectedSchedules.map((schedule, index) => `
+                        <div class="schedule-item" draggable="true" ondragstart="dragStart(event, ${index}, '${prefix}')" ondragover="allowDrop(event)" ondrop="drop(event, ${index}, '${prefix}')" data-index="${index}">
+                            <div>
+                                <span class="schedule-order-num">${index + 1}</span>
+                                <span class="schedule-name">${schedule}</span>
+                            </div>
+                            <div style="display: flex; gap: 5px;">
+                                ${index > 0 ? `<button class="btn-small" onclick="moveSchedule('${prefix}', ${index}, -1)">▲</button>` : ''}
+                                ${index < selectedSchedules.length - 1 ? `<button class="btn-small" onclick="moveSchedule('${prefix}', ${index}, 1)">▼</button>` : ''}
+                                <button class="btn-small btn-remove" onclick="removeScheduleFromBot('${prefix}', '${schedule}')">×</button>
+                            </div>
+                        </div>
+                    `).join('');
+            }
+        }
+
+        function addScheduleToBot(prefix, schedule) {
+            const selected = prefix === 'add-bot' ? addBotSelectedSchedules : editBotSelectedSchedules;
+            if (!selected.includes(schedule)) {
+                selected.push(schedule);
+                renderScheduleSelector(prefix, selected);
+            }
+        }
+
+        function removeScheduleFromBot(prefix, schedule) {
+            const selected = prefix === 'add-bot' ? addBotSelectedSchedules : editBotSelectedSchedules;
+            const index = selected.indexOf(schedule);
+            if (index > -1) {
+                selected.splice(index, 1);
+                renderScheduleSelector(prefix, selected);
+            }
+        }
+
+        function moveSchedule(prefix, index, direction) {
+            const selected = prefix === 'add-bot' ? addBotSelectedSchedules : editBotSelectedSchedules;
+            const newIndex = index + direction;
+            if (newIndex >= 0 && newIndex < selected.length) {
+                [selected[index], selected[newIndex]] = [selected[newIndex], selected[index]];
+                renderScheduleSelector(prefix, selected);
+            }
+        }
+
+        // Drag and drop functions
+        let draggedIndex = null;
+        let draggedPrefix = null;
+
+        function dragStart(event, index, prefix) {
+            draggedIndex = index;
+            draggedPrefix = prefix;
+            event.target.classList.add('dragging');
+        }
+
+        function allowDrop(event) {
+            event.preventDefault();
+        }
+
+        function drop(event, dropIndex, prefix) {
+            event.preventDefault();
+            if (draggedPrefix === prefix && draggedIndex !== null && draggedIndex !== dropIndex) {
+                const selected = prefix === 'add-bot' ? addBotSelectedSchedules : editBotSelectedSchedules;
+                const [draggedItem] = selected.splice(draggedIndex, 1);
+                selected.splice(dropIndex, 0, draggedItem);
+                renderScheduleSelector(prefix, selected);
+            }
+            draggedIndex = null;
+            draggedPrefix = null;
+            document.querySelectorAll('.schedule-item').forEach(item => item.classList.remove('dragging'));
+        }
+
         async function loadBots() {
             try {
+                await loadAvailableSchedules();
+                renderScheduleSelector('add-bot', []);
+
                 const response = await fetch('/api/bots');
                 const bots = await response.json();
                 const list = document.getElementById('bots-list');
-                list.innerHTML = bots.map(bot => `
-                    <div class="bot-card">
-                        <strong>Token:</strong> ${bot.bot_token.substring(0, 10)}...<br>
-                        <strong>Chat ID:</strong> ${bot.chat_id}<br>
-                        <strong>Schedule Time:</strong> ${bot.scheduler_time}<br>
-                        <strong>Enabled:</strong> ${bot.enabled ? '✓' : '✗'}
-                    </div>
-                `).join('');
+                list.innerHTML = bots.map(bot => {
+                    const schedules = bot.schedules || ['schedule.xlsx'];
+                    const schedulesList = schedules.map((s, i) => `<span style="display: inline-block; margin-right: 10px;"><span class="schedule-order-num" style="width: 20px; height: 20px; line-height: 20px; font-size: 11px;">${i + 1}</span> ${s}</span>`).join('');
+                    return `
+                        <div class="bot-card">
+                            <strong>Token:</strong> ${bot.bot_token.substring(0, 10)}...<br>
+                            <strong>Chat ID:</strong> ${bot.chat_id}<br>
+                            <strong>Schedule Time:</strong> ${bot.scheduler_time}<br>
+                            <strong>Enabled:</strong> ${bot.enabled ? '✓' : '✗'}<br>
+                            <strong>Schedules (in order):</strong><br>
+                            <div style="margin-top: 8px;">${schedulesList}</div>
+                            <div class="btn-group">
+                                <button class="btn-edit" onclick='editBot(${JSON.stringify(bot)})'>✏️ Edit</button>
+                                <button class="btn-delete" onclick="deleteBot('${bot.bot_token}')">🗑️ Delete</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
             } catch (e) {
                 console.error('Failed to load bots', e);
+            }
+        }
+
+        function editBot(bot) {
+            document.getElementById('edit-bot-token').value = bot.bot_token;
+            document.getElementById('edit-chat-id').value = bot.chat_id;
+            document.getElementById('edit-scheduler-time').value = bot.scheduler_time;
+            document.getElementById('edit-enabled').checked = bot.enabled;
+
+            renderScheduleSelector('edit-bot', bot.schedules || ['schedule.xlsx']);
+
+            document.getElementById('edit-bot-modal').style.display = 'block';
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-bot-modal').style.display = 'none';
+        }
+
+        async function deleteBot(botToken) {
+            if (!confirm('Are you sure you want to delete this bot configuration?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/bots/${encodeURIComponent(botToken)}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    alert('Bot deleted successfully!');
+                    loadBots();
+                } else {
+                    const error = await response.json();
+                    alert('Failed to delete bot: ' + (error.detail || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
             }
         }
 
@@ -272,19 +626,55 @@
             e.preventDefault();
             const formData = new FormData(e.target);
 
+            // Use the ordered selected schedules
+            formData.append('schedules', JSON.stringify(addBotSelectedSchedules));
+
             try {
                 const response = await fetch('/api/bots', {
                     method: 'POST',
-                    body: formData  // Send FormData directly, not JSON
+                    body: formData
                 });
 
                 if (response.ok) {
                     alert('Bot added successfully!');
                     e.target.reset();
+                    addBotSelectedSchedules = [];
                     loadBots();
                 } else {
                     const error = await response.json();
                     alert('Failed to add bot: ' + (error.detail || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        };
+
+        document.getElementById('edit-bot-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const botToken = document.getElementById('edit-bot-token').value;
+            const formData = new FormData();
+
+            formData.append('chat_id', document.getElementById('edit-chat-id').value);
+            formData.append('scheduler_time', document.getElementById('edit-scheduler-time').value);
+            formData.append('enabled', document.getElementById('edit-enabled').checked);
+
+            // Use the ordered selected schedules
+            formData.append('schedules', JSON.stringify(editBotSelectedSchedules));
+
+            try {
+                const response = await fetch(`/api/bots/${encodeURIComponent(botToken)}`, {
+                    method: 'PUT',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    alert('Bot updated successfully!');
+                    closeEditModal();
+                    editBotSelectedSchedules = [];
+                    loadBots();
+                } else {
+                    const error = await response.json();
+                    alert('Failed to update bot: ' + (error.detail || 'Unknown error'));
                 }
             } catch (e) {
                 alert('Error: ' + e.message);

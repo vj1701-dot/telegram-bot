@@ -211,6 +211,7 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
         if audio_dir.exists():
             file_count = len(list(audio_dir.rglob("*.mp3"))) + \
                         len(list(audio_dir.rglob("*.ogg"))) + \
+                        len(list(audio_dir.rglob("*.opus"))) + \
                         len(list(audio_dir.rglob("*.wav"))) + \
                         len(list(audio_dir.rglob("*.m4a")))
 
@@ -228,18 +229,81 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
         return config_mgr.get_bots()
 
     @app.post("/api/bots")
-    async def add_bot(bot_token: str = Form(...), chat_id: str = Form(...), scheduler_time: str = Form("09:00")):
+    async def add_bot(
+        bot_token: str = Form(...),
+        chat_id: str = Form(...),
+        scheduler_time: str = Form("09:00"),
+        schedules: str = Form("[]")
+    ):
         """Add a new bot."""
         from bot.config import BotConfigManager
+        import json
+
         config_mgr = BotConfigManager(DATA_DIR)
 
-        if config_mgr.add_bot(bot_token, chat_id, scheduler_time):
+        # Parse schedules JSON
+        try:
+            schedules_list = json.loads(schedules) if schedules else []
+        except json.JSONDecodeError:
+            schedules_list = []
+
+        if config_mgr.add_bot(bot_token, chat_id, scheduler_time, schedules_list):
             # Reload config
             await bot_manager.initialize()
             scheduler_manager.reload_schedules()
             return {"status": "added"}
         else:
             raise HTTPException(status_code=400, detail="Bot already exists")
+
+    @app.put("/api/bots/{bot_token}")
+    async def update_bot(
+        bot_token: str,
+        chat_id: str = Form(...),
+        scheduler_time: str = Form(...),
+        enabled: bool = Form(...),
+        schedules: str = Form("[]")
+    ):
+        """Update an existing bot configuration."""
+        from bot.config import BotConfigManager
+        import json
+
+        config_mgr = BotConfigManager(DATA_DIR)
+
+        # Parse schedules JSON
+        try:
+            schedules_list = json.loads(schedules) if schedules else []
+        except json.JSONDecodeError:
+            schedules_list = []
+
+        updated = config_mgr.update_bot(
+            bot_token,
+            chat_id=chat_id,
+            scheduler_time=scheduler_time,
+            enabled=enabled,
+            schedules=schedules_list
+        )
+
+        if updated:
+            # Reload config
+            await bot_manager.initialize()
+            scheduler_manager.reload_schedules()
+            return {"status": "updated"}
+        else:
+            raise HTTPException(status_code=404, detail="Bot not found")
+
+    @app.delete("/api/bots/{bot_token}")
+    async def delete_bot(bot_token: str):
+        """Delete a bot configuration."""
+        from bot.config import BotConfigManager
+        config_mgr = BotConfigManager(DATA_DIR)
+
+        config_mgr.delete_bot(bot_token)
+
+        # Reload config
+        await bot_manager.initialize()
+        scheduler_manager.reload_schedules()
+
+        return {"status": "deleted"}
 
     @app.post("/api/upload")
     async def upload_file(file: UploadFile = File(...), folder: str = Form("audio/")):

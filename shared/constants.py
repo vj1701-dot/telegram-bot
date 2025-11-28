@@ -6,6 +6,7 @@ class AudioFormat(str, Enum):
     """Supported audio formats."""
     MP3 = "mp3"
     OGG = "ogg"
+    OPUS = "opus"
     WAV = "wav"
     M4A = "m4a"
 

@@ -59,7 +59,8 @@ class BotConfigManager:
         }
 
     def add_bot(self, bot_token: str, chat_id: str,
-                scheduler_time: str = "09:00") -> bool:
+                scheduler_time: str = "09:00",
+                schedules: List[str] = None) -> bool:
         """Add new bot configuration."""
         if any(b["bot_token"] == bot_token for b in self.data["bots"]):
             return False
@@ -68,6 +69,7 @@ class BotConfigManager:
             "bot_token": bot_token,
             "chat_id": chat_id,
             "scheduler_time": scheduler_time,
+            "schedules": schedules or ["schedule.xlsx"],
             "enabled": True,
             "created_at": self._now()
         })

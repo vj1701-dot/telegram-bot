@@ -82,12 +82,16 @@ class TelegramBotManager:
             logger.info(f"Processing audio file: {file_path}")
             ogg_path = await self.audio_converter.convert_to_ogg(file_path)
 
-            # Send as voice message
+            # Send as voice message with simple caption (date + filename)
+            from datetime import datetime
+            today_date = datetime.now().strftime("%Y-%m-%d")
+            filename = Path(file_path).name
+
             with open(ogg_path, 'rb') as audio_file:
                 message = await bot.send_voice(
                     chat_id=chat_id,
                     voice=audio_file,
-                    caption=f"📻 Scheduled: {Path(file_path).name}"
+                    caption=f"{today_date} {filename}"
                 )
 
             logger.info(f"✓ Audio sent: {file_path} to {chat_id}")

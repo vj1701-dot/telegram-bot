@@ -17,16 +17,17 @@ class AudioConverter:
 
     async def convert_to_ogg(self, mp3_path: str) -> str:
         """
-        Convert MP3 to OGG OPUS format.
+        Convert audio to OGG OPUS format.
+        Supports MP3, M4A, WAV, and already-opus formats (.ogg, .opus).
         Returns path to converted file.
         """
         mp3_file = Path(mp3_path)
         if not mp3_file.exists():
             raise FileNotFoundError(f"Audio file not found: {mp3_path}")
 
-        # Check if already OGG
-        if mp3_file.suffix.lower() == ".ogg":
-            logger.info(f"File already in OGG format: {mp3_path}")
+        # Check if already in OGG/OPUS format - no conversion needed
+        if mp3_file.suffix.lower() in [".ogg", ".opus"]:
+            logger.info(f"File already in OPUS format: {mp3_path}")
             return mp3_path
 
         # Use hash of original file as cache key

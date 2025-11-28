@@ -81,6 +81,34 @@ class ExcelParser:
         logger.info(f"Found {len(today_entries)} entries for today ({today})")
         return today_entries
 
+    def get_today_entries_from_files(self, schedule_files: List[str]) -> List[ScheduleEntry]:
+        """Get entries scheduled for today from specific schedule files.
+
+        IMPORTANT: Entries are returned in the order of the schedule_files list.
+        Files are processed sequentially, and entries maintain their order within each file.
+        This allows users to control the send order by specifying schedule file order.
+        """
+        today = datetime.now().strftime("%Y-%m-%d")
+        all_entries = []
+
+        # Process schedule files in the order they appear in the list
+        for filename in schedule_files:
+            schedule_path = self.data_dir / filename
+            if schedule_path.exists():
+                entries = self._parse_file(schedule_path)
+                # Extend maintains order - entries from file 1 come before file 2, etc.
+                all_entries.extend(entries)
+                logger.info(f"Loaded {len(entries)} entries from {filename}")
+            else:
+                logger.warning(f"Schedule file not found: {filename}")
+
+        # Filter for today while maintaining order
+        today_entries = [e for e in all_entries
+                        if e.date == today and e.enabled]
+
+        logger.info(f"Found {len(today_entries)} entries for today ({today}) from {len(schedule_files)} file(s)")
+        return today_entries
+
     def get_entries_by_date(self, date_str: str) -> List[ScheduleEntry]:
         """Get entries for a specific date (YYYY-MM-DD format)."""
         all_entries = self.get_all_entries()

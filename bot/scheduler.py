@@ -60,31 +60,44 @@ class SchedulerManager:
                 tz = self._get_timezone(config_manager)
                 trigger = CronTrigger(hour=hour, minute=minute, timezone=tz)
 
+                # Get schedules for this bot (default to schedule.xlsx if not set)
+                bot_schedules = bot_config.get("schedules", ["schedule.xlsx"])
+
                 self.scheduler.add_job(
                     self._run_daily_schedule,
                     trigger=trigger,
                     id=job_id,
-                    args=[bot_config["bot_token"], bot_config["chat_id"]],
+                    args=[bot_config["bot_token"], bot_config["chat_id"], bot_schedules],
                     name=f"Daily schedule for bot {bot_config['bot_token'][:20]}..."
                 )
 
-                logger.info(f"✓ Scheduled job: {job_id} at {hour:02d}:{minute:02d} ({tz})")
+                logger.info(f"✓ Scheduled job: {job_id} at {hour:02d}:{minute:02d} ({tz}) with schedules: {', '.join(bot_schedules)}")
 
-    async def _run_daily_schedule(self, bot_token: str, chat_id: str):
-        """Execute daily schedule for specific bot."""
+    async def _run_daily_schedule(self, bot_token: str, chat_id: str, schedules: list = None):
+        """Execute daily schedule for specific bot.
+
+        Files are sent in the order determined by the schedules list.
+        For example, if schedules = ['morning.csv', 'evening.csv']:
+        - All files from morning.csv (for today) are sent first
+        - Then all files from evening.csv (for today) are sent
+        This allows precise control over send order.
+        """
         logger.info(f"Running daily schedule for bot: {bot_token[:20]}...")
 
         try:
-            # Parse today's schedule from Excel
-            schedule_entries = self.excel_parser.get_today_entries()
+            # Parse today's schedule from specified schedule files (in order)
+            if schedules is None:
+                schedules = ["schedule.xlsx"]
+
+            schedule_entries = self.excel_parser.get_today_entries_from_files(schedules)
 
             if not schedule_entries:
                 logger.info("No entries scheduled for today")
                 return
 
-            logger.info(f"Found {len(schedule_entries)} entries for today")
+            logger.info(f"Found {len(schedule_entries)} entries for today from schedules: {', '.join(schedules)}")
 
-            # Send each audio file
+            # Send each audio file in the order returned
             success_count = 0
             for entry in schedule_entries:
                 file_path = entry.build_full_path()
