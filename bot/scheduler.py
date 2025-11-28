@@ -113,15 +113,25 @@ class SchedulerManager:
         except Exception as e:
             logger.error(f"Schedule execution failed: {e}", exc_info=True)
 
-    async def send_by_date(self, bot_token: str, chat_id: str, date_str: str) -> int:
-        """Send all audio files for a specific date. Returns count of successful sends."""
+    async def send_by_date(self, bot_token: str, chat_id: str, date_str: str, schedules: list = None) -> int:
+        """
+        Send all audio files for a specific date from specific schedule files.
+        Maintains the order of schedules list.
+        Returns count of successful sends.
+        """
         try:
-            entries = self.excel_parser.get_entries_by_date(date_str)
+            if schedules is None:
+                # Fallback to all schedules if not specified
+                entries = self.excel_parser.get_entries_by_date(date_str)
+            else:
+                # Use specific schedules in the order provided
+                entries = self.excel_parser.get_entries_by_date_from_files(date_str, schedules)
+
             if not entries:
                 logger.info(f"No entries found for date: {date_str}")
                 return 0
 
-            logger.info(f"Sending {len(entries)} entries for {date_str}")
+            logger.info(f"Sending {len(entries)} entries for {date_str} from schedules: {', '.join(schedules or ['all'])}")
 
             file_paths = [entry.build_full_path() for entry in entries]
             success_count = await self.bot_manager.send_multiple_audio(

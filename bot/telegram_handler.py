@@ -59,65 +59,113 @@ class TelegramBotManager:
             self.state_manager.set_last_error(bot_token, str(e))
 
     async def send_audio(self, bot_token: str, chat_id: str,
-                        file_path: str) -> bool:
+                        file_path: str, max_retries: int = 3) -> bool:
         """
-        Send audio file to Telegram.
+        Send audio file to Telegram with retry logic.
         Converts MP3 to OGG OPUS format first.
+        Retries up to max_retries times with 300 second timeout per attempt.
         """
         if bot_token not in self.bots:
             logger.error(f"Bot not found: {bot_token[:20]}...")
             return False
 
+        # Validate file exists
+        if not self.file_validator.verify_file(file_path):
+            error_msg = f"File not found or invalid: {file_path}"
+            logger.error(error_msg)
+            self.state_manager.set_last_error(bot_token, error_msg)
+            return False
+
+        # Convert to OGG if needed (do this once, outside retry loop)
         try:
-            bot = self.bots[bot_token]
-
-            # Validate file exists
-            if not self.file_validator.verify_file(file_path):
-                error_msg = f"File not found or invalid: {file_path}"
-                logger.error(error_msg)
-                self.state_manager.set_last_error(bot_token, error_msg)
-                return False
-
-            # Convert to OGG if needed
             logger.info(f"Processing audio file: {file_path}")
             ogg_path = await self.audio_converter.convert_to_ogg(file_path)
-
-            # Send as voice message with simple caption (date + filename)
-            from datetime import datetime
-            today_date = datetime.now().strftime("%Y-%m-%d")
-            filename = Path(file_path).name
-
-            with open(ogg_path, 'rb') as audio_file:
-                message = await bot.send_voice(
-                    chat_id=chat_id,
-                    voice=audio_file,
-                    caption=f"{today_date} {filename}"
-                )
-
-            logger.info(f"✓ Audio sent: {file_path} to {chat_id}")
-
-            # Update state
-            self.state_manager.set_last_sent_file(bot_token, file_path)
-            self.state_manager.set_last_run(bot_token)
-            self.state_manager.clear_error(bot_token)
-
-            return True
-
         except Exception as e:
-            error_msg = f"Failed to send audio: {e}"
+            error_msg = f"Failed to convert audio: {e}"
             logger.error(error_msg)
             self.state_manager.set_last_error(bot_token, str(e))
             return False
 
+        # Retry loop for sending
+        for attempt in range(1, max_retries + 1):
+            try:
+                bot = self.bots[bot_token]
+
+                # Send as voice message with simple caption (date + filename)
+                from datetime import datetime
+                today_date = datetime.now().strftime("%Y-%m-%d")
+                filename = Path(file_path).name
+
+                logger.info(f"Sending (attempt {attempt}/{max_retries}): {filename}")
+
+                with open(ogg_path, 'rb') as audio_file:
+                    # Set longer timeout (300 seconds for both read and connect)
+                    message = await asyncio.wait_for(
+                        bot.send_voice(
+                            chat_id=chat_id,
+                            voice=audio_file,
+                            caption=f"{today_date} {filename}",
+                            read_timeout=300,
+                            write_timeout=300,
+                            connect_timeout=300
+                        ),
+                        timeout=300
+                    )
+
+                logger.info(f"✓ Audio sent: {file_path} to {chat_id}")
+
+                # Update state
+                self.state_manager.set_last_sent_file(bot_token, file_path)
+                self.state_manager.set_last_run(bot_token)
+                self.state_manager.clear_error(bot_token)
+
+                return True
+
+            except asyncio.TimeoutError:
+                error_msg = f"Timeout on attempt {attempt}/{max_retries}: {file_path}"
+                logger.warning(error_msg)
+                if attempt < max_retries:
+                    logger.info(f"Retrying in 5 seconds...")
+                    await asyncio.sleep(5)
+                else:
+                    logger.error(f"All {max_retries} attempts failed for: {file_path}")
+                    self.state_manager.set_last_error(bot_token, "Timeout after all retries")
+                    return False
+
+            except Exception as e:
+                error_msg = f"Error on attempt {attempt}/{max_retries}: {e}"
+                logger.warning(error_msg)
+                if attempt < max_retries:
+                    logger.info(f"Retrying in 5 seconds...")
+                    await asyncio.sleep(5)
+                else:
+                    logger.error(f"All {max_retries} attempts failed: {e}")
+                    self.state_manager.set_last_error(bot_token, str(e))
+                    return False
+
+        return False
+
     async def send_multiple_audio(self, bot_token: str, chat_id: str,
                                   file_paths: List[str]) -> int:
-        """Send multiple audio files. Returns count of successful sends."""
+        """
+        Send multiple audio files sequentially in the exact order provided.
+        Each file is sent one at a time with retry logic.
+        Returns count of successful sends.
+        """
         success_count = 0
-        for file_path in file_paths:
+        total = len(file_paths)
+
+        for index, file_path in enumerate(file_paths, 1):
+            logger.info(f"Processing file {index}/{total} in sequence")
             if await self.send_audio(bot_token, chat_id, file_path):
                 success_count += 1
-                # Small delay to avoid rate limiting
-                await asyncio.sleep(1)
+                # Small delay between successful sends to avoid rate limiting
+                if index < total:  # Don't delay after the last file
+                    await asyncio.sleep(2)
+            else:
+                # Even if a file fails after all retries, continue with the next file
+                logger.warning(f"Skipping failed file {index}/{total}, continuing with sequence")
+
         return success_count
 
     async def test_bot_connection(self, bot_token: str) -> bool:

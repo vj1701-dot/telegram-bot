@@ -114,6 +114,29 @@ class ExcelParser:
         all_entries = self.get_all_entries()
         return [e for e in all_entries if e.date == date_str and e.enabled]
 
+    def get_entries_by_date_from_files(self, date_str: str, schedule_files: List[str]) -> List[ScheduleEntry]:
+        """
+        Get entries for a specific date from specific schedule files.
+        Maintains the order of schedule_files list.
+        """
+        all_entries = []
+
+        # Process schedule files in the order they appear in the list
+        for filename in schedule_files:
+            schedule_path = self.data_dir / filename
+            if schedule_path.exists():
+                entries = self._parse_file(schedule_path)
+                all_entries.extend(entries)
+                logger.info(f"Loaded {len(entries)} entries from {filename}")
+            else:
+                logger.warning(f"Schedule file not found: {filename}")
+
+        # Filter for the specific date while maintaining order
+        date_entries = [e for e in all_entries if e.date == date_str and e.enabled]
+
+        logger.info(f"Found {len(date_entries)} entries for {date_str} from {len(schedule_files)} file(s)")
+        return date_entries
+
     def _parse_row_dict(self, row, row_idx: int) -> ScheduleEntry:
         """Parse a pandas DataFrame row into ScheduleEntry."""
         # Expected columns: Date, Path, Track Name, Enabled

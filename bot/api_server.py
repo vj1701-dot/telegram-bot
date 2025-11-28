@@ -88,13 +88,22 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
 
     @app.post("/send-by-date")
     async def send_by_date(request: SendByDateRequest):
-        """Send all audio files for a specific date."""
+        """Send all audio files for a specific date using bot's assigned schedules."""
         logger.info(f"API: Send by date request for {request.date}")
+
+        # Get bot config to find its assigned schedules
+        from bot.config import BotConfigManager
+        config_mgr = BotConfigManager(DATA_DIR)
+        bot_config = config_mgr.get_bot(request.bot_token)
+
+        # Use bot's specific schedules if available
+        bot_schedules = bot_config.get("schedules", ["schedule.xlsx"]) if bot_config else None
 
         success_count = await scheduler_manager.send_by_date(
             request.bot_token,
             request.chat_id,
-            request.date
+            request.date,
+            bot_schedules
         )
 
         return {
@@ -495,7 +504,7 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
 
     @app.post("/api/send-manual")
     async def send_manual(date: str = Form(...)):
-        """Manually send audio for a specific date."""
+        """Manually send audio for a specific date using each bot's assigned schedules."""
         from bot.config import BotConfigManager
         config_mgr = BotConfigManager(DATA_DIR)
         bots = config_mgr.get_bots()
@@ -503,10 +512,14 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
         total_sent = 0
         for bot_config in bots:
             if bot_config.get("enabled"):
+                # Get bot's specific schedules (in order)
+                bot_schedules = bot_config.get("schedules", ["schedule.xlsx"])
+
                 count = await scheduler_manager.send_by_date(
                     bot_config["bot_token"],
                     bot_config["chat_id"],
-                    date
+                    date,
+                    bot_schedules  # Pass bot's specific schedules
                 )
                 total_sent += count
 
