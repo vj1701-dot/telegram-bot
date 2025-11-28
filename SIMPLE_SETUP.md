@@ -28,7 +28,9 @@ docker-compose up -d --build
 - Enter your Bot Token (from @BotFather)
 - Enter Chat ID (your channel/group ID)
 - Set daily send time
+- **Select which schedule file to use** (optional - defaults to all schedules)
 - Click "Add Bot"
+- **Edit existing bots**: Click "Edit" to modify configuration
 
 ### 2. Upload Audio Files
 - Go to "Upload Files" tab
@@ -36,13 +38,18 @@ docker-compose up -d --build
 - Choose target folder
 - Upload
 
-### 3. Create Schedule
-- Create an Excel file with columns:
+### 3. Create Schedule(s)
+- **Multiple Schedules Supported**: Create multiple schedule files for different purposes
+  - `schedule.xlsx` (default)
+  - `schedule_weekday.xlsx`
+  - `schedule_weekend.xlsx`
+  - Bot reads ALL `schedule*.xlsx` files automatically
+- Each schedule has columns:
   - **Date**: YYYY-MM-DD format
   - **Path**: audio/ or audio/subfolder/
   - **Track Name**: filename.mp3
   - **Enabled**: TRUE or FALSE
-- Upload via "Schedule" tab
+- Create/edit via "Schedule" tab or upload Excel files
 
 ### 4. Manual Send
 - Go to "Manual Send" tab
@@ -63,7 +70,8 @@ telegram-audio-bot/
 │           └── index.html  # Simple HTML UI
 ├── data/                # Your files (mounted volume)
 │   ├── config.json      # Bot configuration
-│   ├── schedule.xlsx    # Schedule file
+│   ├── schedule.xlsx    # Default schedule
+│   ├── schedule_*.xlsx  # Additional schedules (optional)
 │   └── audio/           # Audio files
 ├── docker-compose.yml
 ├── Dockerfile
@@ -72,10 +80,12 @@ telegram-audio-bot/
 
 ## How It Works
 
-1. **Scheduler**: Runs daily at configured time, sends audio based on schedule.xlsx
-2. **Web UI**: Simple HTML interface for configuration and manual operations
-3. **API**: FastAPI endpoints for all operations (see /docs)
-4. **One-way**: Bot only sends messages, doesn't listen for commands
+1. **Scheduler**: Runs daily at configured time, sends audio based on all enabled schedules
+2. **Multiple Schedules**: Bot reads ALL `schedule*.xlsx` files and merges entries
+3. **Per-Bot Schedules**: Each bot can use specific schedule files or all schedules
+4. **Web UI**: Simple HTML interface for configuration and manual operations
+5. **API**: FastAPI endpoints for all operations (see /docs)
+6. **One-way**: Bot only sends messages, doesn't listen for commands
 
 ## Troubleshooting
 
