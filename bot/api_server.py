@@ -256,16 +256,22 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
 
     @app.post("/api/schedule")
     async def upload_schedule(file: UploadFile = File(...)):
-        """Upload schedule.xlsx file."""
-        if not file.filename.endswith('.xlsx'):
-            raise HTTPException(status_code=400, detail="Only .xlsx files allowed")
+        """Upload schedule file (.xlsx, .ods, or .csv)."""
+        allowed_extensions = {'.xlsx', '.ods', '.csv'}
+        file_ext = Path(file.filename).suffix.lower()
 
-        schedule_path = DATA_DIR / "schedule.xlsx"
+        if file_ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Only {', '.join(allowed_extensions)} files allowed"
+            )
+
+        schedule_path = DATA_DIR / file.filename
 
         with open(schedule_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        return {"status": "uploaded"}
+        return {"status": "uploaded", "filename": file.filename}
 
     @app.get("/api/schedule")
     async def download_schedule():
@@ -279,12 +285,16 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
 
     @app.get("/api/schedules/list")
     async def list_schedules():
-        """List all schedule files."""
-        schedule_files = list(DATA_DIR.glob("schedule*.xlsx"))
+        """List all schedule files (.xlsx, .ods, .csv)."""
+        schedule_files = []
+        for pattern in ["schedule*.xlsx", "schedule*.ods", "schedule*.csv"]:
+            schedule_files.extend(list(DATA_DIR.glob(pattern)))
+
         # Also check schedules subfolder
         schedules_dir = DATA_DIR / "schedules"
         if schedules_dir.exists():
-            schedule_files.extend(list(schedules_dir.glob("*.xlsx")))
+            for ext in ["*.xlsx", "*.ods", "*.csv"]:
+                schedule_files.extend(list(schedules_dir.glob(ext)))
 
         files = [f.name for f in schedule_files]
         return {"schedules": files}
@@ -302,9 +312,24 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
         if not schedule_path.exists():
             return {"rows": []}
 
-        df = pd.read_excel(schedule_path)
-        rows = df.to_dict('records')
-        return {"rows": rows, "filename": filename}
+        try:
+            # Read based on file extension
+            file_ext = schedule_path.suffix.lower()
+            if file_ext == '.csv':
+                df = pd.read_csv(schedule_path)
+            elif file_ext == '.ods':
+                df = pd.read_excel(schedule_path, engine='odf')
+            else:  # .xlsx
+                df = pd.read_excel(schedule_path)
+
+            rows = df.to_dict('records')
+            return {"rows": rows, "filename": filename}
+        except Exception as e:
+            logger.error(f"Failed to read schedule file {filename}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to read schedule file: {str(e)}"
+            )
 
     @app.post("/api/schedule/data")
     async def save_schedule_data(rows: str = Form(...), filename: str = Form("schedule.xlsx")):
@@ -339,8 +364,14 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
                 expected_cols = ['Date', 'Path', 'Track Name', 'Enabled']
                 df = df[expected_cols]
 
-            # Save to Excel with openpyxl engine
-            df.to_excel(schedule_path, index=False, engine='openpyxl')
+            # Save based on file extension
+            file_ext = schedule_path.suffix.lower()
+            if file_ext == '.csv':
+                df.to_csv(schedule_path, index=False)
+            elif file_ext == '.ods':
+                df.to_excel(schedule_path, index=False, engine='odf')
+            else:  # .xlsx
+                df.to_excel(schedule_path, index=False, engine='openpyxl')
 
             logger.info(f"Schedule saved successfully: {filename} with {len(rows_data)} rows")
             return {"status": "saved", "rows": len(rows_data), "filename": filename}
@@ -351,13 +382,18 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
 
     @app.post("/api/schedule/create")
     async def create_schedule(filename: str = Form(...)):
-        """Create a new empty schedule file."""
+        """Create a new empty schedule file (.xlsx, .ods, or .csv)."""
         import pandas as pd
 
         # Sanitize filename
         filename = filename.strip()
-        if not filename.endswith('.xlsx'):
+
+        # Check if filename has a valid extension, add .xlsx if not
+        file_ext = Path(filename).suffix.lower()
+        allowed_extensions = {'.xlsx', '.ods', '.csv'}
+        if file_ext not in allowed_extensions:
             filename += '.xlsx'
+            file_ext = '.xlsx'
 
         schedule_path = DATA_DIR / filename
 
@@ -366,7 +402,14 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
 
         # Create empty schedule
         df = pd.DataFrame(columns=['Date', 'Path', 'Track Name', 'Enabled'])
-        df.to_excel(schedule_path, index=False, engine='openpyxl')
+
+        # Save based on file extension
+        if file_ext == '.csv':
+            df.to_csv(schedule_path, index=False)
+        elif file_ext == '.ods':
+            df.to_excel(schedule_path, index=False, engine='odf')
+        else:  # .xlsx
+            df.to_excel(schedule_path, index=False, engine='openpyxl')
 
         logger.info(f"Created new schedule: {filename}")
         return {"status": "created", "filename": filename}

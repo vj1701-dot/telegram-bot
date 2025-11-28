@@ -1,8 +1,7 @@
-"""Parse schedule files - supports multiple .xlsx files."""
+"""Parse schedule files - supports .xlsx, .ods, and .csv files."""
 import logging
 from pathlib import Path
 from datetime import datetime
-from openpyxl import load_workbook
 from typing import List
 
 from shared.models import ScheduleEntry
@@ -11,14 +10,16 @@ logger = logging.getLogger(__name__)
 
 
 class ExcelParser:
-    """Parses Excel schedule files - supports multiple schedules."""
+    """Parses schedule files - supports .xlsx, .ods, and .csv formats."""
 
     def __init__(self, data_dir: Path = Path("/app/data")):
         self.data_dir = data_dir
 
     def get_all_schedule_files(self) -> List[Path]:
-        """Get all schedule.xlsx files in data directory."""
-        schedule_files = list(self.data_dir.glob("schedule*.xlsx"))
+        """Get all schedule files (.xlsx, .ods, .csv) in data directory."""
+        schedule_files = []
+        for pattern in ["schedule*.xlsx", "schedule*.ods", "schedule*.csv"]:
+            schedule_files.extend(list(self.data_dir.glob(pattern)))
         logger.info(f"Found {len(schedule_files)} schedule file(s): {[f.name for f in schedule_files]}")
         return schedule_files
 
@@ -40,22 +41,29 @@ class ExcelParser:
         return all_entries
 
     def _parse_file(self, excel_path: Path) -> List[ScheduleEntry]:
-        """Parse a single Excel file."""
+        """Parse a single schedule file (.xlsx, .ods, or .csv)."""
         if not excel_path.exists():
             logger.warning(f"Schedule file not found: {excel_path}")
             return []
 
         try:
-            wb = load_workbook(excel_path, read_only=True)
-            ws = wb.active
+            import pandas as pd
+
+            # Read based on file extension
+            file_ext = excel_path.suffix.lower()
+            if file_ext == '.csv':
+                df = pd.read_csv(excel_path)
+            elif file_ext == '.ods':
+                df = pd.read_excel(excel_path, engine='odf')
+            else:  # .xlsx
+                df = pd.read_excel(excel_path)
 
             entries = []
-            for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-                entry = self._parse_row(row, row_idx)
+            for row_idx, row in df.iterrows():
+                entry = self._parse_row_dict(row, row_idx + 2)  # +2 for header + 0-indexing
                 if entry:
                     entries.append(entry)
 
-            wb.close()
             return entries
 
         except Exception as e:
@@ -78,8 +86,41 @@ class ExcelParser:
         all_entries = self.get_all_entries()
         return [e for e in all_entries if e.date == date_str and e.enabled]
 
+    def _parse_row_dict(self, row, row_idx: int) -> ScheduleEntry:
+        """Parse a pandas DataFrame row into ScheduleEntry."""
+        # Expected columns: Date, Path, Track Name, Enabled
+        try:
+            import pandas as pd
+
+            # Check if row has required columns
+            if pd.isna(row.get('Date')) or pd.isna(row.get('Path')) or pd.isna(row.get('Track Name')):
+                return None
+
+            date_cell = row.get('Date')
+            path_cell = row.get('Path')
+            track_cell = row.get('Track Name')
+            enabled_cell = row.get('Enabled', True)
+
+            # Handle datetime objects from Excel
+            if isinstance(date_cell, datetime):
+                date_str = date_cell.strftime("%Y-%m-%d")
+            elif pd.notna(date_cell):
+                date_str = str(date_cell)
+            else:
+                return None
+
+            return ScheduleEntry(
+                date=date_str,
+                path=str(path_cell),
+                track_name=str(track_cell),
+                enabled=bool(enabled_cell)
+            )
+        except Exception as e:
+            logger.error(f"Failed to parse row {row_idx}: {e}")
+            return None
+
     def _parse_row(self, row, row_idx: int) -> ScheduleEntry:
-        """Parse a single Excel row into ScheduleEntry."""
+        """Parse a single Excel row into ScheduleEntry (legacy method)."""
         # Expected columns: Date, Path, Track Name, Enabled
         try:
             if not row or len(row) < 3:
