@@ -277,6 +277,43 @@ def create_app(bot_manager, scheduler_manager) -> FastAPI:
 
         return FileResponse(schedule_path, filename="schedule.xlsx")
 
+    @app.get("/api/schedule/data")
+    async def get_schedule_data():
+        """Get schedule data as JSON for editing."""
+        import pandas as pd
+        schedule_path = DATA_DIR / "schedule.xlsx"
+
+        if not schedule_path.exists():
+            return {"rows": []}
+
+        df = pd.read_excel(schedule_path)
+        rows = df.to_dict('records')
+        return {"rows": rows}
+
+    @app.post("/api/schedule/data")
+    async def save_schedule_data(rows: List[Dict] = Form(...)):
+        """Save schedule data from JSON."""
+        import pandas as pd
+        import json
+
+        schedule_path = DATA_DIR / "schedule.xlsx"
+
+        # Parse the JSON string
+        rows_data = json.loads(rows)
+
+        # Create DataFrame
+        df = pd.DataFrame(rows_data)
+
+        # Ensure correct column order
+        if not df.empty:
+            expected_cols = ['Date', 'Path', 'Track Name', 'Enabled']
+            df = df[expected_cols]
+
+        # Save to Excel
+        df.to_excel(schedule_path, index=False)
+
+        return {"status": "saved", "rows": len(rows_data)}
+
     @app.post("/api/send-manual")
     async def send_manual(date: str = Form(...)):
         """Manually send audio for a specific date."""
